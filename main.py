@@ -74,8 +74,8 @@ if is_playable != last_status:
         await channel.send(message, allowed_mentions=discord.AllowedMentions(roles=True))
         last_status = is_playable
 
-            await update_presence(is_playable)
-            await update_role(channel, is_playable)
+        await update_presence(is_playable)
+        await update_role(channel, is_playable)
 
         await asyncio.sleep(CHECK_INTERVAL)
 
