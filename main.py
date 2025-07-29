@@ -64,15 +64,16 @@ async def monitor():
 
         is_playable = auth_up and world_up
 
-if is_playable != last_status:
-    guild = channel.guild
-    role = discord.utils.get(guild.roles, name="Epoch-Status")
+        # Fixed indentation from here down so await is inside the async function
+        if is_playable != last_status:
+            guild = channel.guild
+            role = discord.utils.get(guild.roles, name="Epoch-Status")
 
-    if role:
-        mention = role.mention
-        message = f"✅ {mention} - Online" if is_playable else f"🔴 {mention} - Down"
-        await channel.send(message, allowed_mentions=discord.AllowedMentions(roles=True))
-        last_status = is_playable
+            if role:
+                mention = role.mention
+                message = f"✅ {mention} - Online" if is_playable else f"🔴 {mention} - Down"
+                await channel.send(message, allowed_mentions=discord.AllowedMentions(roles=True))
+                last_status = is_playable
 
         await update_presence(is_playable)
         await update_role(channel, is_playable)
