@@ -65,7 +65,7 @@ async def monitor():
         is_playable = auth_up and world_up
 
         if is_playable != last_status:
-            message = "✅ Epoch Server - Online" if is_playable else "🔴 Epoch Server - Down"
+            message = "✅ @Epoch-Status - Online" if is_playable else "🔴 @Epoch-Status - Down"
             await channel.send(message)
             last_status = is_playable
 
