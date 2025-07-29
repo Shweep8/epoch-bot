@@ -5,8 +5,6 @@ import discord
 from datetime import datetime
 import os
 import pytz
-from threading import Thread
-from flask import Flask
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))
@@ -24,15 +22,6 @@ last_presence_text = None
 last_role_status = None
 
 local_tz = pytz.timezone("America/New_York")
-
-app = Flask(__name__)
-
-@app.route("/")
-def home():
-    return "Epoch bot is running."
-
-def run_flask():
-    app.run(host="0.0.0.0", port=8080)
 
 def check_port(host, port):
     try:
@@ -98,5 +87,4 @@ async def on_ready():
     await monitor()
 
 if __name__ == "__main__":
-    Thread(target=run_flask).start()
     client.run(TOKEN)
