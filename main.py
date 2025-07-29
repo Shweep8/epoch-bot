@@ -1,10 +1,7 @@
-
 import socket
 import asyncio
 import discord
-from datetime import datetime
 import os
-import pytz
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))
@@ -20,8 +17,6 @@ client = discord.Client(intents=intents)
 last_status = None
 last_presence_text = None
 last_role_status = None
-
-local_tz = pytz.timezone("America/New_York")
 
 def check_port(host, port):
     try:
@@ -64,15 +59,13 @@ async def monitor():
     global last_status
 
     while not client.is_closed():
-        now = datetime.now(local_tz).strftime("%Y-%m-%d %I:%M %p %Z")
-
         auth_up = check_port(SERVER, PORT)
         world_up = check_port(SERVER, WORLD_PORT)
 
         is_playable = auth_up and world_up
 
         if is_playable != last_status:
-            message = f"[{now}] ✅ Epoch Server - Online" if is_playable else f"[{now}] 🔴 Epoch Server - Down"
+            message = "✅ Epoch Server - Online" if is_playable else "🔴 Epoch Server - Down"
             await channel.send(message)
             last_status = is_playable
 
