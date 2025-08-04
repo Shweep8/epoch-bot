@@ -7,7 +7,8 @@ import subprocess
 
 import shutil
 
-
+path = shutil.which("pwsh")
+print(f"pwsh: {path or 'not found'}")
 
 # --- minimal helper to mirror PowerShell Test-NetConnection behavior on Windows ---
 def port_reachable(host: str, port: int, timeout: int = 3) -> bool:
