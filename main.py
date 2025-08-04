@@ -48,7 +48,7 @@ last_status = None
 last_presence_text = None
 last_role_status = None
 
-# --- minimal cross platform helper to mirror your Bash script ---
+# --- minimal cross platform helper to mirror Bash script ---
 async def update_presence(is_playable):
     global last_presence_text
     text = "✅ Server Online" if is_playable else "🔴 Server Down"
@@ -88,7 +88,6 @@ async def monitor():
 
         is_playable = auth_up and world_up
 
-        # Fixed indentation from here down so await is inside the async function
         if is_playable != last_status:
             guild = channel.guild
             role = discord.utils.get(guild.roles, name="Epoch-Status")
