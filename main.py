@@ -8,45 +8,38 @@ import subprocess
 import shutil
 
 
-def port_reachable(host: str, port: int, timeout: int = 8) -> bool:
-    import socket, shutil, subprocess
-    # Resolve IPv4 first, then IPv6
-    addrs = []
-    try:
-        addrs += [ai[4][0] for ai in socket.getaddrinfo(host, port, family=socket.AF_INET, type=socket.SOCK_STREAM)]
-    except Exception:
-        pass
-    try:
-        addrs += [ai[4][0] for ai in socket.getaddrinfo(host, port, family=socket.AF_INET6, type=socket.SOCK_STREAM)]
-    except Exception:
-        pass
-    if not addrs:
-        return False
 
-    pwsh = shutil.which("pwsh")
-
-    for ip in addrs:
-        if pwsh:
-            try:
-                r = subprocess.run(
-                    [pwsh, "-NoLogo", "-NoProfile", "-Command",
-                     f"Test-Connection -TargetName '{ip}' -TcpPort {port} -TimeoutSeconds {max(1,int(timeout))} -Quiet"],
-                    capture_output=True, text=True, timeout=timeout
-                )
-                if "True" in r.stdout:
-                    return True
-            except Exception:
-                pass
-        # Fallback strict TCP
+# --- minimal helper to mirror PowerShell Test-NetConnection behavior on Windows ---
+def port_reachable(host: str, port: int, timeout: int = 3) -> bool:
+    """
+    On Windows, use PowerShell Test-NetConnection -InformationLevel Quiet.
+    Else, fall back to a raw TCP connect.
+    """
+    if os.name == "nt":
         try:
-            with socket.create_connection((ip, port), timeout=timeout):
+            ps_cmd = [
+                "powershell.exe",
+                "-NoProfile",
+                "-Command",
+                (
+                    f"Test-NetConnection -ComputerName '{host}' -Port {port} "
+                    "-InformationLevel Quiet -WarningAction SilentlyContinue"
+                ),
+            ]
+            completed = subprocess.run(
+                ps_cmd, capture_output=True, text=True, timeout=timeout
+            )
+            if "True" in completed.stdout:
                 return True
         except Exception:
-            continue
-    return False
+            # Fall through to raw connect
+            pass
+    try:
+        if port_reachable(host, port, timeout=5):
+            return True
+    except Exception:
+        return False
 
-# --- Linux-only helper to mirror Bash script semantics ---
-# --- minimal helper to mirror PowerShell Test-NetConnection behavior on Windows ---
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))
 SERVER = "game.project-epoch.net"
@@ -62,7 +55,58 @@ last_status = None
 last_presence_text = None
 last_role_status = None
 
-# --- minimal cross platform helper to mirror Bash script ---
+# --- minimal cross platform helper to mirror your Bash script ---
+def port_reachable(host: str, port: int, timeout: int = 3) -> bool:
+    """
+    Windows: use Test-NetConnection -InformationLevel Quiet
+    Linux or macOS: use PowerShell 7 Test-Connection -TcpPort -Quiet if pwsh is available
+    Fallback: strict raw TCP connect
+    """
+    # 1) Windows parity
+    if os.name == "nt":
+        try:
+            ps_cmd = [
+                "powershell.exe", "-NoProfile", "-Command",
+                (
+                    f"Test-NetConnection -ComputerName '{host}' -Port {port} "
+                    f"-InformationLevel Quiet -WarningAction SilentlyContinue"
+                ),
+            ]
+            completed = subprocess.run(
+                ps_cmd, capture_output=True, text=True, timeout=timeout
+            )
+            if "True" in completed.stdout:
+                return True
+        except Exception:
+            pass  # fall through
+
+    # 2) PowerShell 7 cross platform path if available
+    pwsh = shutil.which("pwsh")
+    if pwsh:
+        try:
+            ps7_cmd = [
+                pwsh, "-NoLogo", "-NoProfile", "-Command",
+                (
+                    f"Test-Connection -TargetName '{host}' -TcpPort {port} "
+                    f"-TimeoutSeconds {max(1, int(timeout))} -Quiet"
+                ),
+            ]
+            completed = subprocess.run(
+                ps7_cmd, capture_output=True, text=True, timeout=timeout
+            )
+            # -Quiet prints True or False
+            if "True" in completed.stdout:
+                return True
+        except Exception:
+            pass  # fall through
+
+    # 3) Fallback: strict raw TCP connect
+    try:
+        with port_reachable(host, port, timeout=timeout):
+            return True
+    except Exception:
+        return False
+
 async def update_presence(is_playable):
     global last_presence_text
     text = "✅ Server Online" if is_playable else "🔴 Server Down"
@@ -73,6 +117,8 @@ async def update_presence(is_playable):
         last_presence_text = text
 
 async def update_role(channel, is_playable):
+    if channel is None:
+        return
     global last_role_status
 
     guild = channel.guild
@@ -94,6 +140,12 @@ async def update_role(channel, is_playable):
 async def monitor():
     await client.wait_until_ready()
     channel = client.get_channel(CHANNEL_ID)
+    # Try to fetch if not cached or CHANNEL_ID wrong type
+    if channel is None:
+        try:
+            channel = await client.fetch_channel(CHANNEL_ID)
+        except Exception:
+            channel = None
     global last_status
 
     while not client.is_closed():
@@ -102,7 +154,8 @@ async def monitor():
 
         is_playable = auth_up and world_up
 
-        if is_playable != last_status:
+        # Fixed indentation from here down so await is inside the async function
+        if is_playable != last_status and channel is not None:
             guild = channel.guild
             role = discord.utils.get(guild.roles, name="Epoch-Status")
 
