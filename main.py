@@ -8,38 +8,52 @@ import subprocess
 import shutil
 
 
+def port_reachable(host: str, port: int, timeout: int = 8) -> bool:
+    """
+    Linux - use PowerShell 7 (pwsh) Test-Connection -TcpPort -Quiet when available.
+    Fallback - strict raw TCP connect.
+    Resolves IPv4 first, then IPv6, and probes each concrete IP.
+    """
+    import socket, shutil, subprocess
 
-# --- minimal helper to mirror PowerShell Test-NetConnection behavior on Windows ---
-def port_reachable(host: str, port: int, timeout: int = 3) -> bool:
-    """
-    On Windows, use PowerShell Test-NetConnection -InformationLevel Quiet.
-    Else, fall back to a raw TCP connect.
-    """
-    if os.name == "nt":
-        try:
-            ps_cmd = [
-                "powershell.exe",
-                "-NoProfile",
-                "-Command",
-                (
-                    f"Test-NetConnection -ComputerName '{host}' -Port {port} "
-                    "-InformationLevel Quiet -WarningAction SilentlyContinue"
-                ),
-            ]
-            completed = subprocess.run(
-                ps_cmd, capture_output=True, text=True, timeout=timeout
-            )
-            if "True" in completed.stdout:
-                return True
-        except Exception:
-            # Fall through to raw connect
-            pass
+    # Resolve A then AAAA
+    addrs = []
     try:
-        if port_reachable(host, port, timeout=5):
-            return True
+        addrs += [ai[4][0] for ai in socket.getaddrinfo(host, port, family=socket.AF_INET, type=socket.SOCK_STREAM)]
     except Exception:
+        pass
+    try:
+        addrs += [ai[4][0] for ai in socket.getaddrinfo(host, port, family=socket.AF_INET6, type=socket.SOCK_STREAM)]
+    except Exception:
+        pass
+    if not addrs:
         return False
 
+    pwsh = shutil.which("pwsh")
+
+    for ip in addrs:
+        if pwsh:
+            try:
+                r = subprocess.run(
+                    [pwsh, "-NoLogo", "-NoProfile", "-Command",
+                     f"Test-Connection -TargetName '{ip}' -TcpPort {port} -TimeoutSeconds {max(1,int(timeout))} -Quiet"],
+                    capture_output=True, text=True, timeout=timeout
+                )
+                if "True" in r.stdout:
+                    return True
+            except Exception:
+                pass
+        # Fallback - strict TCP
+        try:
+            with socket.create_connection((ip, port), timeout=timeout):
+                return True
+        except Exception:
+            continue
+
+    return False
+
+
+# --- minimal helper to mirror PowerShell Test-NetConnection behavior on Windows ---
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))
 SERVER = "game.project-epoch.net"
@@ -55,58 +69,7 @@ last_status = None
 last_presence_text = None
 last_role_status = None
 
-# --- minimal cross platform helper to mirror your Bash script ---
-def port_reachable(host: str, port: int, timeout: int = 3) -> bool:
-    """
-    Windows: use Test-NetConnection -InformationLevel Quiet
-    Linux or macOS: use PowerShell 7 Test-Connection -TcpPort -Quiet if pwsh is available
-    Fallback: strict raw TCP connect
-    """
-    # 1) Windows parity
-    if os.name == "nt":
-        try:
-            ps_cmd = [
-                "powershell.exe", "-NoProfile", "-Command",
-                (
-                    f"Test-NetConnection -ComputerName '{host}' -Port {port} "
-                    f"-InformationLevel Quiet -WarningAction SilentlyContinue"
-                ),
-            ]
-            completed = subprocess.run(
-                ps_cmd, capture_output=True, text=True, timeout=timeout
-            )
-            if "True" in completed.stdout:
-                return True
-        except Exception:
-            pass  # fall through
-
-    # 2) PowerShell 7 cross platform path if available
-    pwsh = shutil.which("pwsh")
-    if pwsh:
-        try:
-            ps7_cmd = [
-                pwsh, "-NoLogo", "-NoProfile", "-Command",
-                (
-                    f"Test-Connection -TargetName '{host}' -TcpPort {port} "
-                    f"-TimeoutSeconds {max(1, int(timeout))} -Quiet"
-                ),
-            ]
-            completed = subprocess.run(
-                ps7_cmd, capture_output=True, text=True, timeout=timeout
-            )
-            # -Quiet prints True or False
-            if "True" in completed.stdout:
-                return True
-        except Exception:
-            pass  # fall through
-
-    # 3) Fallback: strict raw TCP connect
-    try:
-        with port_reachable(host, port, timeout=timeout):
-            return True
-    except Exception:
-        return False
-
+# --- minimal cross platform helper to mirror Bash script ---
 async def update_presence(is_playable):
     global last_presence_text
     text = "✅ Server Online" if is_playable else "🔴 Server Down"
