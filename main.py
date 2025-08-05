@@ -8,30 +8,44 @@ import subprocess
 import shutil
 
 
-# --- Linux-only helper to mirror Bash script semantics ---
-def port_reachable(host: str, port: int, timeout: int = 3) -> bool:
-    pwsh_path = shutil.which("pwsh")
-    if pwsh_path:
-        try:
-            completed = subprocess.run(
-                [
-                    pwsh_path, "-NoLogo", "-NoProfile", "-Command",
-                    f"Test-Connection -TargetName '{host}' -TcpPort {port} "
-                    f"-TimeoutSeconds {max(1, int(timeout))} -Quiet"
-                ],
-                capture_output=True, text=True, timeout=timeout
-            )
-            if "True" in completed.stdout:
-                return True
-        except Exception:
-            pass
+def port_reachable(host: str, port: int, timeout: int = 8) -> bool:
+    import socket, shutil, subprocess
+    # Resolve IPv4 first, then IPv6
+    addrs = []
     try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
+        addrs += [ai[4][0] for ai in socket.getaddrinfo(host, port, family=socket.AF_INET, type=socket.SOCK_STREAM)]
     except Exception:
+        pass
+    try:
+        addrs += [ai[4][0] for ai in socket.getaddrinfo(host, port, family=socket.AF_INET6, type=socket.SOCK_STREAM)]
+    except Exception:
+        pass
+    if not addrs:
         return False
 
+    pwsh = shutil.which("pwsh")
 
+    for ip in addrs:
+        if pwsh:
+            try:
+                r = subprocess.run(
+                    [pwsh, "-NoLogo", "-NoProfile", "-Command",
+                     f"Test-Connection -TargetName '{ip}' -TcpPort {port} -TimeoutSeconds {max(1,int(timeout))} -Quiet"],
+                    capture_output=True, text=True, timeout=timeout
+                )
+                if "True" in r.stdout:
+                    return True
+            except Exception:
+                pass
+        # Fallback strict TCP
+        try:
+            with socket.create_connection((ip, port), timeout=timeout):
+                return True
+        except Exception:
+            continue
+    return False
+
+# --- Linux-only helper to mirror Bash script semantics ---
 # --- minimal helper to mirror PowerShell Test-NetConnection behavior on Windows ---
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))
