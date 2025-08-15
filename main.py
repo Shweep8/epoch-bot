@@ -89,6 +89,16 @@ async def monitor():
             channel = None
     global last_status
 
+    # Do initial check before updating anything
+    auth_up = port_reachable(SERVER, PORT, timeout=5)
+    world_up = port_reachable(WORLD_SERVER, WORLD_PORT, timeout=5)
+    is_playable = auth_up and world_up
+    
+    # Set initial status without sending a message
+    last_status = is_playable
+    await update_presence(is_playable)
+    await update_role(channel, is_playable)
+
     while not client.is_closed():
         auth_up = port_reachable(SERVER, PORT, timeout=5)
         world_up = port_reachable(WORLD_SERVER, WORLD_PORT, timeout=5)
