@@ -6,30 +6,13 @@ import os
 
 def port_reachable(host: str, port: int, timeout: int = 8) -> bool:
     """
-    Standard Python socket connection check.
-    Resolves IPv4 first, then IPv6, and probes each concrete IP.
+    Standard Python socket connection check - IPv4 only.
     """
-    # Resolve A then AAAA
-    addrs = []
     try:
-        addrs += [ai[4][0] for ai in socket.getaddrinfo(host, port, family=socket.AF_INET, type=socket.SOCK_STREAM)]
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
     except Exception:
-        pass
-    try:
-        addrs += [ai[4][0] for ai in socket.getaddrinfo(host, port, family=socket.AF_INET6, type=socket.SOCK_STREAM)]
-    except Exception:
-        pass
-    if not addrs:
         return False
-
-    for ip in addrs:
-        try:
-            with socket.create_connection((ip, port), timeout=timeout):
-                return True
-        except Exception:
-            continue
-
-    return False
 
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -96,6 +79,9 @@ async def monitor():
     
     # Set initial status without sending a message
     last_status = is_playable
+    last_presence_text = "✅ Server Online" if is_playable else "🔴 Server Down"
+    last_role_status = "Online" if is_playable else "Down"
+    
     await update_presence(is_playable)
     await update_role(channel, is_playable)
 
@@ -114,11 +100,11 @@ async def monitor():
                 mention = role.mention
                 message = f"✅ {mention} - Online" if is_playable else f"🔴 {mention} - Down"
                 await channel.send(message, allowed_mentions=discord.AllowedMentions(roles=True))
-                last_status = is_playable
-
-        await update_presence(is_playable)
-        await update_role(channel, is_playable)
-
+            
+            last_status = is_playable
+            await update_presence(is_playable)
+            await update_role(channel, is_playable)
+        
         await asyncio.sleep(CHECK_INTERVAL)
 
 @client.event
