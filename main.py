@@ -3,19 +3,12 @@ import asyncio
 import discord
 import os
 
-import subprocess
-
-import shutil
-
 
 def port_reachable(host: str, port: int, timeout: int = 8) -> bool:
     """
-    Linux - use PowerShell 7 (pwsh) Test-Connection -TcpPort -Quiet when available.
-    Fallback - strict raw TCP connect.
+    Standard Python socket connection check.
     Resolves IPv4 first, then IPv6, and probes each concrete IP.
     """
-    import socket, shutil, subprocess
-
     # Resolve A then AAAA
     addrs = []
     try:
@@ -29,21 +22,7 @@ def port_reachable(host: str, port: int, timeout: int = 8) -> bool:
     if not addrs:
         return False
 
-    pwsh = shutil.which("pwsh")
-
     for ip in addrs:
-        if pwsh:
-            try:
-                r = subprocess.run(
-                    [pwsh, "-NoLogo", "-NoProfile", "-Command",
-                     f"Test-Connection -TargetName '{ip}' -TcpPort {port} -TimeoutSeconds {max(1,int(timeout))} -Quiet"],
-                    capture_output=True, text=True, timeout=timeout
-                )
-                if "True" in r.stdout:
-                    return True
-            except Exception:
-                pass
-        # Fallback - strict TCP
         try:
             with socket.create_connection((ip, port), timeout=timeout):
                 return True
@@ -53,12 +32,12 @@ def port_reachable(host: str, port: int, timeout: int = 8) -> bool:
     return False
 
 
-# --- minimal helper to mirror PowerShell Test-NetConnection behavior on Windows ---
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))
-SERVER = "game.project-epoch.net"
+SERVER = "162.19.28.88"
 PORT = 3724
-WORLD_PORT = 8085
+WORLD_SERVER = "135.125.119.89"
+WORLD_PORT = 8000
 CHECK_INTERVAL = 15  # seconds
 
 intents = discord.Intents.default()
@@ -69,7 +48,6 @@ last_status = None
 last_presence_text = None
 last_role_status = None
 
-# --- minimal cross platform helper to mirror Bash script ---
 async def update_presence(is_playable):
     global last_presence_text
     text = "✅ Server Online" if is_playable else "🔴 Server Down"
@@ -113,7 +91,7 @@ async def monitor():
 
     while not client.is_closed():
         auth_up = port_reachable(SERVER, PORT, timeout=5)
-        world_up = port_reachable(SERVER, WORLD_PORT, timeout=5)
+        world_up = port_reachable(WORLD_SERVER, WORLD_PORT, timeout=5)
 
         is_playable = auth_up and world_up
 
