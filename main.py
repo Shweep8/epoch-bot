@@ -72,16 +72,21 @@ async def monitor():
             channel = None
     global last_status
 
-    # Do initial check before updating anything
+    # Do initial check and setup
+    print("Checking authentication server...")
     auth_up = port_reachable(SERVER, PORT, timeout=5)
+    print(f"Auth server ({SERVER}:{PORT}): {'UP' if auth_up else 'DOWN'}")
+    
+    print("Checking world server...")
     world_up = port_reachable(WORLD_SERVER, WORLD_PORT, timeout=5)
+    print(f"World server ({WORLD_SERVER}:{WORLD_PORT}): {'UP' if world_up else 'DOWN'}")
+    
+    # BOTH must be up for server to be playable
     is_playable = auth_up and world_up
+    print(f"Server playable: {is_playable}")
     
-    # Set initial status without sending a message
+    # Set initial status
     last_status = is_playable
-    last_presence_text = "✅ Server Online" if is_playable else "🔴 Server Down"
-    last_role_status = "Online" if is_playable else "Down"
-    
     await update_presence(is_playable)
     await update_role(channel, is_playable)
 
@@ -89,17 +94,22 @@ async def monitor():
         auth_up = port_reachable(SERVER, PORT, timeout=5)
         world_up = port_reachable(WORLD_SERVER, WORLD_PORT, timeout=5)
 
+        # BOTH must be up for server to be playable
         is_playable = auth_up and world_up
 
-        # Fixed indentation from here down so await is inside the async function
-        if is_playable != last_status and channel is not None:
-            guild = channel.guild
-            role = discord.utils.get(guild.roles, name="Epoch-Status")
+        # Only update if status changed
+        if is_playable != last_status:
+            print(f"Status change detected: {'ONLINE' if is_playable else 'DOWN'}")
+            print(f"  Auth: {'UP' if auth_up else 'DOWN'}, World: {'UP' if world_up else 'DOWN'}")
+            
+            if channel is not None:
+                guild = channel.guild
+                role = discord.utils.get(guild.roles, name="Epoch-Status")
 
-            if role:
-                mention = role.mention
-                message = f"✅ {mention} - Online" if is_playable else f"🔴 {mention} - Down"
-                await channel.send(message, allowed_mentions=discord.AllowedMentions(roles=True))
+                if role:
+                    mention = role.mention
+                    message = f"✅ {mention} - Online" if is_playable else f"🔴 {mention} - Down"
+                    await channel.send(message, allowed_mentions=discord.AllowedMentions(roles=True))
             
             last_status = is_playable
             await update_presence(is_playable)
