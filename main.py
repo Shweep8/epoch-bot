@@ -30,6 +30,7 @@ client = discord.Client(intents=intents)
 last_status = None
 last_presence_text = None
 last_role_status = None
+monitor_task = None
 
 async def update_presence(is_playable):
     global last_presence_text
@@ -85,10 +86,27 @@ async def monitor():
     is_playable = auth_up and world_up
     print(f"Server playable: {is_playable}")
     
-    # Set initial status
-    last_status = is_playable
-    await update_presence(is_playable)
-    await update_role(channel, is_playable)
+    # Only set initial status if this is truly the first run
+    if last_status is None:
+        last_status = is_playable
+        await update_presence(is_playable)
+        await update_role(channel, is_playable)
+    else:
+        # Bot reconnected, check if status actually changed
+        if is_playable != last_status:
+            print(f"Status changed during reconnect: {'ONLINE' if is_playable else 'DOWN'}")
+            if channel is not None:
+                guild = channel.guild
+                role = discord.utils.get(guild.roles, name="Epoch-Status")
+
+                if role:
+                    mention = role.mention
+                    message = f"✅ {mention} - Online" if is_playable else f"🔴 {mention} - Down"
+                    await channel.send(message, allowed_mentions=discord.AllowedMentions(roles=True))
+            
+            last_status = is_playable
+            await update_presence(is_playable)
+            await update_role(channel, is_playable)
 
     while not client.is_closed():
         auth_up = port_reachable(SERVER, PORT, timeout=5)
@@ -119,8 +137,12 @@ async def monitor():
 
 @client.event
 async def on_ready():
+    global monitor_task
     print(f"Logged in as {client.user.name}")
-    await monitor()
+    
+    # Only start monitor if it's not already running
+    if monitor_task is None or monitor_task.done():
+        monitor_task = asyncio.create_task(monitor())
 
 if __name__ == "__main__":
     client.run(TOKEN)
