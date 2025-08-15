@@ -25,7 +25,6 @@ CHECK_INTERVAL = 15  # seconds
 
 intents = discord.Intents.default()
 intents.members = True
-intents.presence = True
 client = discord.Client(intents=intents)
 
 last_status = None
