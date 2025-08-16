@@ -122,18 +122,17 @@ async def monitor():
 
     # Main monitoring loop
     while not client.is_closed():
-        await asyncio.sleep(CHECK_INTERVAL)
-        
         auth_up = port_reachable(SERVER, PORT, timeout=5)
         world_up = port_reachable(WORLD_SERVER, WORLD_PORT, timeout=5)
 
         # BOTH must be up for server to be playable
         is_playable = auth_up and world_up
+        
+        print(f"[Check at {asyncio.get_event_loop().time():.0f}s] Auth: {'UP' if auth_up else 'DOWN'}, World: {'UP' if world_up else 'DOWN'}, Playable: {is_playable}")
 
         # Only update if status changed
         if is_playable != last_status:
             print(f"Status change detected: {'ONLINE' if is_playable else 'DOWN'}")
-            print(f"  Auth: {'UP' if auth_up else 'DOWN'}, World: {'UP' if world_up else 'DOWN'}")
             
             if channel is not None:
                 guild = channel.guild
@@ -147,6 +146,8 @@ async def monitor():
             last_status = is_playable
             await update_presence(is_playable)
             await update_role(channel, is_playable)
+        
+        await asyncio.sleep(CHECK_INTERVAL)
 
 @client.event
 async def on_ready():
