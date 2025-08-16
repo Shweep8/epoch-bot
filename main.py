@@ -19,7 +19,7 @@ TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))
 SERVER = "162.19.28.88"
 PORT = 3724
-WORLD_SERVER = "game.project-epoch.net"
+WORLD_SERVER = "162.19.28.88"
 WORLD_PORT = 8000
 CHECK_INTERVAL = 15  # seconds
 
