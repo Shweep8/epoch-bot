@@ -20,7 +20,7 @@ CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID"))
 SERVER = "162.19.28.88"
 PORT = 3724
 WORLD_SERVER = "135.125.119.89"
-WORLD_PORT = 8003
+WORLD_PORT = 8001
 CHECK_INTERVAL = 15  # seconds
 
 intents = discord.Intents.default()
